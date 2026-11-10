@@ -1,6 +1,6 @@
 
-# Use a pinned Node.js version
-ARG NODE_IMAGE=node:24.22.2-bookworm-slim
+# Use a current Node.js LTS release with a patched base image to avoid Debian zlib CVEs
+ARG NODE_IMAGE=node:24-bookworm-slim
 
 # Build stage: install dependencies and run tests
 FROM ${NODE_IMAGE} AS build
