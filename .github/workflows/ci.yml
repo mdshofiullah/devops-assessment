@@ -1,0 +1,108 @@
+
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # JavaScript linting and application tests
+  test:
+    name: Lint and Unit Tests
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+
+  # Dockerfile validation and container security
+  docker:
+    name: Docker Build and Security Scan
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Validate Dockerfile with Hadolint
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: Dockerfile
+
+      - name: Validate Docker Compose
+        run: docker compose config --quiet
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --tag devops-assessment:${{ github.sha }} .
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: image
+          image-ref: devops-assessment:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL
+          vuln-type: os,library
+
+
+  # Shell script validation
+  shellcheck:
+    name: Shell Script Validation
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+
+      - name: Check shell scripts
+        shell: bash
+        run: |
+          mapfile -t shell_files < <(
+            find scripts -type f -name '*.sh' -print
+          )
+
+          if ((${#shell_files[@]} == 0)); then
+            echo "No shell scripts found yet. Check will run when scripts are added."
+          else
+            shellcheck "${shell_files[@]}"
+          fi

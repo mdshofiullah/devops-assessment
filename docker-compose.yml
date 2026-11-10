@@ -1,0 +1,57 @@
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+
+    image: devops-assessment:${APP_VERSION:-1.0.0}
+    container_name: devops-assessment
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: "8080"
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+    restart: unless-stopped
+    init: true
+    read_only: true
+    stop_grace_period: 15s
+
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('node:http').get('http://127.0.0.1:8080/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
