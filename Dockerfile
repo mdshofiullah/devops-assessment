@@ -1,6 +1,6 @@
 
-# Use a current Node.js LTS release with a patched base image to avoid Debian zlib CVEs
-ARG NODE_IMAGE=node:24-bookworm-slim
+# Use a pinned Node.js version
+ARG NODE_IMAGE=node:24.22.2-trixie-slim
 
 # Build stage: install dependencies and run tests
 FROM ${NODE_IMAGE} AS build
@@ -35,8 +35,6 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node package.json ./package.json
 COPY --chown=node:node src ./src
 
-# Run as a non-root user
-# USER node
 # Run as a non-root user with a numeric UID and GID
 USER 1000:1000
 
