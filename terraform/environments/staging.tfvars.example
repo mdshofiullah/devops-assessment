@@ -1,0 +1,22 @@
+
+aws_region     = "ap-south-1"
+environment    = "staging"
+project_name   = "devops-assessment"
+
+vpc_id    = "vpc-REPLACE_ME"
+subnet_id = "subnet-REPLACE_ME"
+ami_id    = "ami-REPLACE_ME"
+
+instance_type = "t3.micro"
+
+app_port = 8080
+
+# Replace with your actual public IP /32 before deployment.
+app_ingress_cidr_blocks = ["198.51.100.10/32"]
+
+enable_ec2_instance = false
+
+log_retention_days = 14
+root_volume_size_gb = 16
+
+image_tag = "latest"

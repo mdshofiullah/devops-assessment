@@ -110,6 +110,37 @@ jobs:
           fi
 
 
+  # Terraform infrastructure validation and testing
+  terraform:
+    name: Terraform Validation and Tests
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Initialize Terraform
+        working-directory: terraform
+        run: terraform init -backend=false -input=false
+
+      - name: Validate Terraform configuration
+        working-directory: terraform
+        run: terraform validate
+
+      - name: Run Terraform mock tests
+        working-directory: terraform
+        run: terraform test
+
 
   # Publish multi-architecture images to GitHub Container Registry
   publish:
@@ -124,6 +155,7 @@ jobs:
       - test
       - docker
       - shellcheck
+      - terraform
 
     runs-on: ubuntu-24.04
 
