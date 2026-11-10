@@ -36,7 +36,9 @@ COPY --chown=node:node package.json ./package.json
 COPY --chown=node:node src ./src
 
 # Run as a non-root user
-USER node
+# USER node
+# Run as a non-root user with a numeric UID and GID
+USER 1000:1000
 
 EXPOSE 8080
 
