@@ -21,7 +21,10 @@ concurrency:
 
 jobs:
 
-  # JavaScript linting and application tests
+  # --------------------------------------------------
+  # 1. Application linting and unit tests
+  # --------------------------------------------------
+
   test:
     name: Lint and Unit Tests
     runs-on: ubuntu-24.04
@@ -49,7 +52,10 @@ jobs:
         run: npm run test:coverage
 
 
-  # Dockerfile validation and container security
+  # --------------------------------------------------
+  # 2. Docker build and security validation
+  # --------------------------------------------------
+
   docker:
     name: Docker Build and Security Scan
     runs-on: ubuntu-24.04
@@ -63,7 +69,7 @@ jobs:
         with:
           dockerfile: Dockerfile
 
-      - name: Validate Docker Compose
+      - name: Validate root Docker Compose
         run: docker compose config --quiet
 
       - name: Build Docker image
@@ -82,7 +88,10 @@ jobs:
           vuln-type: os,library
 
 
-  # Shell script validation
+  # --------------------------------------------------
+  # 3. Shell script validation
+  # --------------------------------------------------
+
   shellcheck:
     name: Shell Script Validation
     runs-on: ubuntu-24.04
@@ -96,7 +105,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes shellcheck
 
-      - name: Check shell scripts
+      - name: Validate shell scripts
         shell: bash
         run: |
           mapfile -t shell_files < <(
@@ -104,13 +113,24 @@ jobs:
           )
 
           if ((${#shell_files[@]} == 0)); then
-            echo "No shell scripts found yet. Check will run when scripts are added."
-          else
-            shellcheck "${shell_files[@]}"
+            echo "No shell scripts found."
+            exit 1
           fi
 
+          shellcheck "${shell_files[@]}"
 
-  # Terraform infrastructure validation and testing
+      - name: Validate Bash syntax
+        shell: bash
+        run: |
+          while IFS= read -r script; do
+            bash -n "$script"
+          done < <(find scripts -type f -name '*.sh' -print)
+
+
+  # --------------------------------------------------
+  # 4. Terraform validation and mock tests
+  # --------------------------------------------------
+
   terraform:
     name: Terraform Validation and Tests
     runs-on: ubuntu-24.04
@@ -142,7 +162,65 @@ jobs:
         run: terraform test
 
 
-  # Publish multi-architecture images to GitHub Container Registry
+  # --------------------------------------------------
+  # 5. Kubernetes and monitoring configuration
+  # --------------------------------------------------
+
+  configuration:
+    name: Kubernetes and Monitoring Validation
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      # Validate Kubernetes YAML against Kubernetes schemas.
+      - name: Validate Kubernetes manifests
+        run: |
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}/k8s:/manifests:ro" \
+            ghcr.io/yannh/kubeconform:v0.6.7 \
+            -strict -summary /manifests
+
+      # Validate monitoring Docker Compose configuration.
+      - name: Validate monitoring Docker Compose
+        run: |
+          docker compose \
+            --env-file monitoring/.env.example \
+            -f monitoring/docker-compose.yml \
+            config --quiet
+
+      # Validate Prometheus configuration.
+      - name: Validate Prometheus configuration
+        run: |
+          docker run --rm \
+            --entrypoint=promtool \
+            -v "${GITHUB_WORKSPACE}/monitoring/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v3.16.0 \
+            check config /etc/prometheus/prometheus.yml
+
+      # Validate Prometheus alert rules.
+      - name: Validate Prometheus alert rules
+        run: |
+          docker run --rm \
+            --entrypoint=promtool \
+            -v "${GITHUB_WORKSPACE}/monitoring/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v3.16.0 \
+            check rules /etc/prometheus/alerts.yml
+
+      # Validate all Grafana dashboard JSON files.
+      - name: Validate Grafana dashboards
+        run: |
+          for dashboard in monitoring/grafana/dashboards/*.json; do
+            echo "Validating ${dashboard}"
+            python -m json.tool "${dashboard}" > /dev/null
+          done
+
+
+  # --------------------------------------------------
+  # 6. Multi-architecture GHCR publishing
+  # --------------------------------------------------
+
   publish:
     name: Build and Publish Docker Image
 
@@ -156,6 +234,7 @@ jobs:
       - docker
       - shellcheck
       - terraform
+      - configuration
 
     runs-on: ubuntu-24.04
 
@@ -196,7 +275,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
 
-      - name: Build and push Docker image
+      - name: Build and push multi-architecture Docker image
         uses: docker/build-push-action@v7.4.0
         with:
           context: .
