@@ -74,3 +74,8 @@ secret*.yaml
 *.p12
 *.pfx
 EOF
+
+health_log.txt
+health_log.txt.1
+health_log.txt.2
+health_log.txt.3

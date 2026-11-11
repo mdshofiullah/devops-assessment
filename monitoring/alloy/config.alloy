@@ -1,0 +1,52 @@
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// Discover Docker containers.
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Parse structured application logs.
+loki.process "docker_logs" {
+  forward_to = [loki.write.local.receiver]
+
+  stage.json {
+    expressions = {
+      service     = "service",
+      environment = "environment",
+      level       = "level",
+    }
+
+    drop_malformed = false
+  }
+
+  stage.labels {
+    values = {
+      service     = "",
+      environment = "",
+      level       = "",
+    }
+  }
+}
+
+// Collect logs from discovered Docker containers.
+loki.source.docker "containers" {
+  host    = "unix:///var/run/docker.sock"
+  targets = discovery.docker.containers.targets
+
+  labels = {
+    job = "docker",
+  }
+
+  forward_to = [loki.process.docker_logs.receiver]
+}
+
+// Send processed logs to Loki.
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

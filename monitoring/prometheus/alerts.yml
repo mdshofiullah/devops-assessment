@@ -1,0 +1,78 @@
+
+groups:
+  - name: application-alerts
+    rules:
+
+      # Application unavailable for one minute.
+      - alert: ApplicationDown
+        expr: up{job="application"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Application is unavailable
+          description: Application metrics endpoint has been unreachable for more than one minute.
+
+      # Error rate above 5% for five minutes.
+      - alert: HighApplicationErrorRate
+        expr: |
+          (
+            sum(rate(http_errors_total[5m]))
+            /
+            clamp_min(sum(rate(http_requests_total[5m])), 0.001)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High application error rate
+          description: More than 5% of application requests are failing.
+
+      # 95th percentile latency above 500ms.
+      - alert: HighApplicationLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Application latency is high
+          description: P95 request latency has exceeded 500 milliseconds.
+
+  - name: infrastructure-alerts
+    rules:
+
+      # Host CPU usage above 85%.
+      - alert: HighHostCPU
+        expr: |
+          (
+            1 - avg by (instance) (
+              rate(node_cpu_seconds_total{mode="idle"}[5m])
+            )
+          ) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: High host CPU usage
+          description: Host CPU usage has remained above 85% for ten minutes.
+
+      # Available memory below 10%.
+      - alert: LowHostMemory
+        expr: |
+          (
+            node_memory_MemAvailable_bytes
+            /
+            node_memory_MemTotal_bytes
+          ) < 0.10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Host memory is running low
+          description: Available memory has remained below 10% for five minutes.

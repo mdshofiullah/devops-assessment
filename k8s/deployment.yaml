@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-assessment
+  namespace: devops
+  labels:
+    app: devops-assessment
+spec:
+  replicas: 2
+
+  revisionHistoryLimit: 5
+  minReadySeconds: 5
+  progressDeadlineSeconds: 120
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  selector:
+    matchLabels:
+      app: devops-assessment
+
+  template:
+    metadata:
+      labels:
+        app: devops-assessment
+
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 20
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: app
+          image: devops-assessment:1.0.0
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: app-config
+
+            - secretRef:
+                name: app-secrets
+
+          # Check whether the application is ready for traffic.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          # Restart the container if the application becomes unhealthy.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

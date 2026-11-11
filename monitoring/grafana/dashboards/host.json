@@ -1,0 +1,190 @@
+
+{
+  "id": null,
+  "uid": "devops-host",
+  "title": "DevOps - Host Monitoring",
+  "tags": ["devops", "infrastructure", "node-exporter"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "CPU Usage",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Memory Usage",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Root Filesystem Usage",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"})",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "CPU Usage Over Time",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100},
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Memory Available",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 15},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "node_memory_MemAvailable_bytes",
+          "legendFormat": "Available memory",
+          "refId": "A"
+        },
+        {
+          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+          "legendFormat": "Used memory",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "bytes"},
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Filesystem Usage",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 15},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "100 * (1 - node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"})",
+          "legendFormat": "{{mountpoint}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100},
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Network Traffic",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 24},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum by (device) (rate(node_network_receive_bytes_total{device!=\"lo\"}[5m]))",
+          "legendFormat": "{{device}} received",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (device) (rate(node_network_transmit_bytes_total{device!=\"lo\"}[5m]))",
+          "legendFormat": "{{device}} transmitted",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "Bps"},
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    }
+  ]
+}

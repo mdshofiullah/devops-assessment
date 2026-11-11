@@ -1,0 +1,207 @@
+
+name: devops-observability
+
+services:
+
+  # Application container monitored by the stack.
+  app:
+    image: devops-assessment:1.0.0
+    container_name: monitoring-app
+
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      APP_VERSION: "1.0.0"
+      LOG_LEVEL: info
+
+    expose:
+      - "8080"
+
+    labels:
+      com.example.service: devops-assessment
+      com.example.environment: local
+
+    restart: unless-stopped
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('node:http').get('http://127.0.0.1:8080/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    networks:
+      - observability
+
+
+  # Prometheus metrics database.
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    container_name: monitoring-prometheus
+
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+
+    expose:
+      - "9090"
+
+    depends_on:
+      app:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+    networks:
+      - observability
+
+
+  # Centralized log storage.
+  loki:
+    image: grafana/loki:3.6.20
+    container_name: monitoring-loki
+
+    command:
+      - "-config.file=/etc/loki/config.yml"
+
+    volumes:
+      - ./loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+
+    expose:
+      - "3100"
+
+    restart: unless-stopped
+
+    networks:
+      - observability
+
+
+  # Docker log collection and processing.
+  alloy:
+    image: grafana/alloy:v1.21.3
+    container_name: monitoring-alloy
+
+    user: "0:0"
+
+    command:
+      - run
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "--storage.path=/var/lib/alloy/data"
+      - "/etc/alloy/config.alloy"
+
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+
+    expose:
+      - "12345"
+
+    depends_on:
+      - loki
+
+    restart: unless-stopped
+
+    networks:
+      - observability
+
+
+  # Linux host metrics.
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    container_name: monitoring-node-exporter
+
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+
+    expose:
+      - "9100"
+
+    restart: unless-stopped
+
+    networks:
+      - observability
+
+
+  # Docker container resource metrics.
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    container_name: monitoring-cadvisor
+
+    privileged: true
+
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+
+    expose:
+      - "8080"
+
+    restart: unless-stopped
+
+    networks:
+      - observability
+
+
+  # Grafana dashboard and visualization interface.
+  grafana:
+    image: grafana/grafana:13.3.1
+    container_name: monitoring-grafana
+
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in monitoring/.env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+    depends_on:
+      - prometheus
+      - loki
+
+    restart: unless-stopped
+
+    networks:
+      - observability
+
+
+networks:
+  observability:
+    driver: bridge
+
+
+volumes:
+  prometheus-data:
+  loki-data:
+  alloy-data:
+  grafana-data:
